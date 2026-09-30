@@ -1,17 +1,19 @@
+import datetime
 import os
 
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from ldap3 import Server, Connection, ALL
+import jwt
 
 app = FastAPI(
-    title="LDAP Authentication API",
-    description="Educational FastAPI + OpenLDAP with API Key protection",
-    version="1.0.0",
+    title="LDAP Authentication API with JWT",
+    description="FastAPI + OpenLDAP with JWT token generation",
+    version="2.0.0",
 )
 
-# Habilitar CORS para permitir peticiones desde el frontend (http://localhost:8080)
+# Habilitar CORS para permitir peticiones desde cualquier origen (Frontend en Vite o Docker)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,6 +25,7 @@ app.add_middleware(
 LDAP_HOST = os.getenv("LDAP_HOST", "openldap")
 LDAP_PORT = int(os.getenv("LDAP_PORT", "389"))
 LDAP_BASE_DN = os.getenv("LDAP_BASE_DN", "dc=example,dc=com")
+JWT_SECRET = os.getenv("JWT_SECRET", "violin_journey_secret_key_2026")
 
 
 class LoginRequest(BaseModel):
@@ -37,12 +40,12 @@ def health():
 
 @app.post("/login")
 def login(request: LoginRequest, x_api_key: str = Header(None, alias="x-api-key")):
-    # 1. Validar que la petición incluya la x-api-key correcta (compartida con Front y Back)
-    expected_secret = os.getenv("API_SECRET", os.getenv("API_KEY", "LAB-INITIAL-ABC123"))
-    if not x_api_key or x_api_key != expected_secret:
+    # 1. Validación opcional de x-api-key si se envía
+    expected_secret = os.getenv("API_SECRET", os.getenv("API_KEY", None))
+    if x_api_key and expected_secret and x_api_key != expected_secret:
         raise HTTPException(
             status_code=401,
-            detail="Unauthorized: x-api-key invalida o ausente",
+            detail="Unauthorized: x-api-key invalida",
         )
 
     # 2. Conectar y autenticar contra OpenLDAP
@@ -67,8 +70,20 @@ def login(request: LoginRequest, x_api_key: str = Header(None, alias="x-api-key"
 
     try:
         if connection.bind():
+            now = datetime.datetime.now(datetime.timezone.utc)
+            payload = {
+                "sub": request.username,
+                "username": request.username,
+                "role": "musician",
+                "iat": int(now.timestamp()),
+                "exp": int((now + datetime.timedelta(hours=24)).timestamp()),
+            }
+            token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
             return {
                 "authenticated": True,
+                "token": token,
+                "token_type": "Bearer",
                 "username": request.username,
                 "dn": user_dn,
                 "message": "Login exitoso mediante LDAP"
