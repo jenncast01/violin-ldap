@@ -1,0 +1,41 @@
+[DEFAULT]
+banaction = iptables-allports
+ignoreip  = 127.0.0.1/8
+usedns    = no
+backend   = polling
+
+bantime = 10m
+bantime.increment = true
+bantime.factor = 2
+bantime.maxtime = 1d
+bantime.rndtime = 30s
+
+[sshd]
+enabled = false
+
+[sshd-ddos]
+enabled = false
+
+# -------------------------------------------------------
+# Cárcel 1: HTTP Flood en la API de login (puerto 8000)
+# -------------------------------------------------------
+[http-flood]
+enabled  = true
+port     = 8000
+filter   = http-flood
+logpath  = /var/log/uvicorn/access.log
+maxretry = 60
+findtime = 10s
+
+# -------------------------------------------------------
+# Cárcel 2: Protección del puerto LDAP con TLS (636/389)
+# Esta cárcel bloquea IPs que intentan conectarse masivamente
+# al puerto seguro de LDAP (LDAPS 636 / STARTTLS 389).
+# -------------------------------------------------------
+[ldap-tls]
+enabled  = true
+port     = 389,636
+filter   = ldap-tls
+logpath  = /var/log/ldap/connections.log
+maxretry = 20
+findtime = 30s
