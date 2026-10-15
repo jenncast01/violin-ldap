@@ -49,6 +49,24 @@ services:
       - NET_ADMIN
       - NET_RAW
 
+  nuclei:
+    image: projectdiscovery/nuclei:latest
+    container_name: nuclei-ldap-scanner
+    profiles:
+      - scan
+    volumes:
+      - ./reports:/reports
+    networks:
+      - ldap-network
+    entrypoint: ["nuclei"]
+    command:
+      - "-target"
+      - "http://api:8000"
+      - "-severity"
+      - "info,low,medium,high,critical"
+      - "-jsonl-export"
+      - "/reports/nuclei-results.jsonl"
+
 volumes:
   ldap_data:
   ldap_config:
